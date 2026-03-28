@@ -9,6 +9,8 @@
     "dev:frontend": "vite",
     "stop": "node dev-manager.js stop",
     "log": "node dev-manager.js log",
+    "backup:db": "node scripts/db-backup.mjs",
+    "restore:db": "node scripts/db-restore.mjs",
     "test": "vitest run",
     "test:db": "RUN_DB_TESTS=1 vitest run server/products.test.ts server/vendas.test.ts server/products.customMeasure.test.ts"
   },
