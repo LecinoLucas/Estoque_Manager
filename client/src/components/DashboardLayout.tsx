@@ -1,5 +1,5 @@
-import { canAccessPath } from "@/_core/access/roleAccess";
-import { useAuth } from "@/_core/hooks/useAuth";
+import { canAccessPath } from "@/features/auth/access/roleAccess";
+import { useAuth } from "@/features/auth/hooks/useAuth";
 import { BrandLogo } from "@/components/BrandLogo";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {

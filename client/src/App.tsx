@@ -1,7 +1,7 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { getAllowedRoles, type UserRole } from "@/_core/access/roleAccess";
-import { useAuth } from "@/_core/hooks/useAuth";
+import { getAllowedRoles, type UserRole } from "@/features/auth/access/roleAccess";
+import { useAuth } from "@/features/auth/hooks/useAuth";
 import NotFound from "@/pages/NotFound";
 import { lazy, Suspense, useEffect, type ComponentType, type LazyExoticComponent } from "react";
 import { Route, Switch } from "wouter";

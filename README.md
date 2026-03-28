@@ -16,10 +16,18 @@ Frontend e backend agora executam de forma **independente**, sem runtime/OAuth d
 estoque-manager/
 ├── client/                # Frontend React
 ├── server/                # Backend API (Express + tRPC)
+│   └── modules/           # Arquitetura em camadas por contexto de negócio
+│       ├── auth/          # Login/sessão/autorização
+│       ├── users/         # Entidade e persistência de usuário
+│       ├── approvals/     # Aprovação/promoção/inativação
+│       └── audit/         # Auditoria/rate-limit/anomalias
 ├── drizzle/               # Schema e migrations do banco
 ├── shared/                # Constantes e tipos compartilhados
 └── package.json           # Scripts da stack
 ```
+
+Detalhes da arquitetura em camadas:
+- [Arquitetura em Camadas e Módulos](/Users/lecinolucas/Desktop/projetos/estoque-manager/docs/ARCHITECTURE.md)
 
 ## Pré-requisitos
 
