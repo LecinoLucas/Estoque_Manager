@@ -1,0 +1,1 @@
+ALTER TABLE `products` MODIFY COLUMN `categoria` enum('Colchões','Roupas de Cama','Pillow Top','Travesseiros','Cabeceiras','Box Baú','Box Premium','Box Tradicional','Acessórios','Bicamas','Camas') NOT NULL;

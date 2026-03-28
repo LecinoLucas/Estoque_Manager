@@ -1,0 +1,1 @@
+ALTER TABLE `vendas` ADD `tipoTransacao` enum('venda','troca','brinde','emprestimo') DEFAULT 'venda' NOT NULL;

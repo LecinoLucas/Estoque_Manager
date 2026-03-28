@@ -1,0 +1,1 @@
+ALTER TABLE `vendas` MODIFY COLUMN `tipoTransacao` enum('venda','troca','brinde','emprestimo','permuta') NOT NULL DEFAULT 'venda';

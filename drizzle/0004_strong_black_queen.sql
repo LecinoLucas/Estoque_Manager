@@ -1,0 +1,1 @@
+ALTER TABLE `products` MODIFY COLUMN `medida` varchar(100) NOT NULL;
