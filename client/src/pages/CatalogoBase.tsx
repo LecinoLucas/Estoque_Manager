@@ -1,25 +1,18 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { trpc } from "@/lib/trpc";
+import { CatalogItemsPanel, type CatalogPanelItem, type CatalogViewMode } from "@/components/catalog/CatalogItemsPanel";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Edit, Trash2, Search, Tag, Ruler, Shapes, Box, CreditCard, UserRound } from "lucide-react";
+import { Plus, Tag, Ruler, Shapes, Box, CreditCard, UserRound } from "lucide-react";
 import { toast } from "sonner";
 
 type CatalogTab = "brands" | "measures" | "types" | "models" | "payments" | "sellers";
-type CatalogItem = {
-  id: number;
-  nome: string;
-  codigo?: string;
-  categoria?: string;
-  brandId?: number;
-  productTypeId?: number;
-  subtitle?: string;
-};
+
+const CATALOG_VIEW_MODE_STORAGE_KEY = "catalog-base-view-mode";
 
 const TAB_CONFIG: Record<CatalogTab, { label: string; icon: typeof Tag; singular: string; plural: string }> = {
   brands: { label: "Marcas", icon: Tag, singular: "Marca", plural: "Marcas" },
@@ -32,6 +25,10 @@ const TAB_CONFIG: Record<CatalogTab, { label: string; icon: typeof Tag; singular
 
 export default function CatalogoBasePage() {
   const [tab, setTab] = useState<CatalogTab>("brands");
+  const [viewMode, setViewMode] = useState<CatalogViewMode>(() => {
+    if (typeof window === "undefined") return "cards";
+    return localStorage.getItem(CATALOG_VIEW_MODE_STORAGE_KEY) === "list" ? "list" : "cards";
+  });
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
@@ -77,7 +74,7 @@ export default function CatalogoBasePage() {
   const syncFromProducts = trpc.catalogo.syncFromProducts.useMutation();
 
   const activeConfig = TAB_CONFIG[tab];
-  const rawItems: CatalogItem[] = useMemo(() => {
+  const rawItems: CatalogPanelItem[] = useMemo(() => {
     if (tab === "brands") return brandsQuery.data ?? [];
     if (tab === "measures") return measuresQuery.data ?? [];
     if (tab === "types") return typesQuery.data ?? [];
@@ -180,7 +177,7 @@ export default function CatalogoBasePage() {
     }
   };
 
-  const openEditModal = (item: CatalogItem) => {
+  const openEditModal = (item: CatalogPanelItem) => {
     setEditId(item.id);
     setEditNome(item.nome);
     setEditModelBrandId(item.brandId ? String(item.brandId) : "");
@@ -234,7 +231,7 @@ export default function CatalogoBasePage() {
     }
   };
 
-  const handleDelete = async (item: CatalogItem) => {
+  const handleDelete = async (item: CatalogPanelItem) => {
     const ok = confirm(`Deseja realmente excluir "${item.nome}"?`);
     if (!ok) return;
     try {
@@ -296,6 +293,10 @@ export default function CatalogoBasePage() {
     deleteSeller.isPending ||
     syncFromProducts.isPending;
 
+  useEffect(() => {
+    localStorage.setItem(CATALOG_VIEW_MODE_STORAGE_KEY, viewMode);
+  }, [viewMode]);
+
   const Icon = activeConfig.icon;
 
   return (
@@ -329,56 +330,20 @@ export default function CatalogoBasePage() {
         </TabsList>
       </Tabs>
 
-      <Card>
-        <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <Icon className="w-5 h-5" />
-            {activeConfig.plural} ({items.length})
-          </CardTitle>
-          <div className="relative w-full md:w-80">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={`Buscar ${activeConfig.plural.toLowerCase()}...`}
-              className="pl-9"
-            />
-          </div>
-        </CardHeader>
-        <CardContent>
-          {activeLoading ? (
-            <p className="text-center text-muted-foreground py-8">Carregando...</p>
-          ) : items.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {items.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-center justify-between rounded-lg border p-3 hover:bg-accent/40 transition-colors"
-                >
-                  <div className="min-w-0 pr-2">
-                    <span className="font-medium truncate block">{item.nome}</span>
-                    {item.subtitle ? (
-                      <span className="text-xs text-muted-foreground truncate block">{item.subtitle}</span>
-                    ) : null}
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Button variant="ghost" size="icon" onClick={() => openEditModal(item)}>
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(item)}>
-                      <Trash2 className="w-4 h-4 text-destructive" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-center text-muted-foreground py-8">
-              Nenhum item encontrado em {activeConfig.plural.toLowerCase()}.
-            </p>
-          )}
-        </CardContent>
-      </Card>
+      <CatalogItemsPanel
+        icon={Icon}
+        title={activeConfig.plural}
+        count={items.length}
+        search={search}
+        onSearchChange={setSearch}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+        activeLoading={activeLoading}
+        items={items}
+        emptyMessage={`Nenhum item encontrado em ${activeConfig.plural.toLowerCase()}.`}
+        onEdit={openEditModal}
+        onDelete={handleDelete}
+      />
 
       <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
         <DialogContent>
