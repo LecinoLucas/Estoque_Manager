@@ -1,5 +1,4 @@
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -74,23 +73,6 @@ export default function ProductFormDialog({
     enableModelSelector && modelSuggestions.length > 0 ? "select" : "manual"
   );
 
-  const [formMode, setFormMode] = useState<"classic" | "v2">(() => {
-    try {
-      const saved = localStorage.getItem("products-form-mode-v2");
-      return saved === "classic" ? "classic" : "v2";
-    } catch {
-      return "v2";
-    }
-  });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem("products-form-mode-v2", formMode);
-    } catch {
-      // noop
-    }
-  }, [formMode]);
-
   useEffect(() => {
     if (!enableModelSelector) return;
     if (modelSuggestions.length === 0) {
@@ -108,16 +90,6 @@ export default function ProductFormDialog({
     setModelInputMode("manual");
   }, [enableModelSelector, formData.name, modelSuggestions]);
 
-  const catalogKeyPreview = useMemo(() => {
-    const marca = formData.marca?.trim() || "SEM_MARCA";
-    const medida = formData.medida?.trim() || "medida";
-    const tipo = formData.categoria?.trim() || "tipo";
-    const modelo = formData.name?.trim() || "modelo";
-    return `${marca} • ${medida} • ${tipo} • ${modelo}`;
-  }, [formData.categoria, formData.marca, formData.medida, formData.name]);
-
-  const isV2Mode = formMode === "v2";
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="bg-card text-card-foreground">
@@ -126,50 +98,8 @@ export default function ProductFormDialog({
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-muted/30 p-2">
-            <div className="flex items-center gap-2">
-              <Badge variant={isV2Mode ? "default" : "secondary"}>
-                {isV2Mode ? "Cadastro V2" : "Cadastro Clássico"}
-              </Badge>
-              <p className="text-xs text-muted-foreground">
-                {isV2Mode
-                  ? "Cadastro guiado por catálogo (marca, medida, tipo e modelo)."
-                  : "Cadastro tradicional compatível com o legado."}
-              </p>
-            </div>
-            <div className="flex items-center gap-1">
-              <Button
-                type="button"
-                size="sm"
-                variant={isV2Mode ? "default" : "ghost"}
-                onClick={() => setFormMode("v2")}
-              >
-                V2
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant={!isV2Mode ? "default" : "ghost"}
-                onClick={() => setFormMode("classic")}
-              >
-                Clássico
-              </Button>
-            </div>
-          </div>
-
-          {isV2Mode && (
-            <div className="rounded-md border border-blue-500/20 bg-blue-500/5 p-3">
-              <p className="text-xs font-medium text-blue-800 dark:text-blue-300">
-                Chave de catálogo (V2)
-              </p>
-              <p className="text-xs text-muted-foreground mt-1 break-words">{catalogKeyPreview}</p>
-            </div>
-          )}
-
           <div className="space-y-2">
-            <Label htmlFor={`${inputIdPrefix}-name`}>
-              {isV2Mode ? "Modelo / Linha do Produto" : "Nome do Produto"}
-            </Label>
+            <Label htmlFor={`${inputIdPrefix}-name`}>Nome do Produto</Label>
             {enableModelSelector && modelInputMode === "select" && modelSuggestions.length > 0 ? (
               <>
                 <Select
@@ -209,7 +139,7 @@ export default function ProductFormDialog({
                   id={`${inputIdPrefix}-name`}
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder={isV2Mode ? "Ex: BRAVÍSSIMO" : "Ex: AMX BRAVISSIMO"}
+                  placeholder="Ex: AMX BRAVISSIMO"
                 />
                 {enableModelSelector && modelSuggestions.length > 0 && (
                   <div className="flex items-center gap-3">
@@ -284,9 +214,7 @@ export default function ProductFormDialog({
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor={`${inputIdPrefix}-categoria`}>
-                {isV2Mode ? "Tipo de Produto" : "Categoria"}
-              </Label>
+              <Label htmlFor={`${inputIdPrefix}-categoria`}>Categoria</Label>
               <Select
                 value={formData.categoria}
                 disabled={lockCatalogValues && categorias.length === 0}
