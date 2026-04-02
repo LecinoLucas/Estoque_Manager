@@ -32,26 +32,34 @@ function QuantityBadge({ product }: { product: Product }) {
   if (product.quantidade < 0) {
     return (
       <div className="flex items-center gap-2">
-        <Badge className="bg-purple-700 px-2.5 py-1 text-sm text-white hover:bg-purple-700">
-          {product.quantidade}
+        <Badge variant="outline" className="px-2.5 py-1 text-sm bg-white text-foreground hover:bg-white">
+          <span className="font-semibold text-purple-700">{product.quantidade}</span>
         </Badge>
-        <span className="text-xs font-medium text-purple-700">
+        <span className="text-xs font-medium text-purple-800">
           {Math.abs(product.quantidade)} encomenda(s)
         </span>
       </div>
     );
   }
   if (product.quantidade <= 1) {
-    return <Badge variant="destructive" className="px-2.5 py-1 text-sm">{product.quantidade}</Badge>;
-  }
-  if (product.quantidade <= product.estoqueMinimo) {
     return (
-      <Badge className="bg-orange-600 px-2.5 py-1 text-sm text-white hover:bg-orange-600">
-        {product.quantidade}
+      <Badge variant="outline" className="px-2.5 py-1 text-sm bg-white text-foreground hover:bg-white">
+        <span className="font-semibold text-red-700">{product.quantidade}</span>
       </Badge>
     );
   }
-  return <Badge variant="outline" className="px-2.5 py-1 text-sm font-semibold">{product.quantidade}</Badge>;
+  if (product.quantidade <= product.estoqueMinimo) {
+    return (
+      <Badge variant="outline" className="px-2.5 py-1 text-sm bg-white text-foreground hover:bg-white">
+        <span className="font-semibold text-orange-700">{product.quantidade}</span>
+      </Badge>
+    );
+  }
+  return (
+    <Badge variant="outline" className="px-2.5 py-1 text-sm bg-white text-foreground hover:bg-white">
+      <span className="font-semibold text-slate-700">{product.quantidade}</span>
+    </Badge>
+  );
 }
 
 export const ProductGridItem = memo(function ProductGridItem({

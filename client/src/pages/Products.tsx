@@ -99,6 +99,7 @@ export default function Products() {
   const [newModelName, setNewModelName] = useState("");
   const [newModelBrandId, setNewModelBrandId] = useState("");
   const [newModelTypeId, setNewModelTypeId] = useState("");
+  const [newModelMeasureIds, setNewModelMeasureIds] = useState<number[]>([]);
 
   const {
     isDeleteConfirmOpen,
@@ -304,6 +305,7 @@ export default function Products() {
     setIsSaleStatusDialogOpen,
     setTogglingProductId,
     marcasDb,
+    medidasDb,
     tiposDb,
     medidasCatalogo,
     tiposCatalogo,
@@ -322,6 +324,8 @@ export default function Products() {
     setNewModelBrandId,
     newModelTypeId,
     setNewModelTypeId,
+    newModelMeasureIds,
+    setNewModelMeasureIds,
     debouncedSearchTerm,
     filterMedida,
     filterCategoria,
@@ -661,6 +665,7 @@ export default function Products() {
         medidasCatalogo={medidasCatalogo}
         tiposCatalogo={tiposCatalogo}
         marcasDb={marcasDb}
+        medidasDb={medidasDb}
         tiposDb={tiposDb}
         modelSuggestions={modelSuggestions}
         editingProduct={editingProduct}
@@ -692,6 +697,8 @@ export default function Products() {
         setNewModelBrandId={setNewModelBrandId}
         newModelTypeId={newModelTypeId}
         setNewModelTypeId={setNewModelTypeId}
+        newModelMeasureIds={newModelMeasureIds}
+        setNewModelMeasureIds={setNewModelMeasureIds}
         handleCreateBrandFromDialog={handleCreateBrandFromDialog}
         handleCreateMeasureFromDialog={handleCreateMeasureFromDialog}
         handleCreateTypeFromDialog={handleCreateTypeFromDialog}
@@ -713,6 +720,7 @@ export default function Products() {
         open={isBatchOpen}
         onOpenChange={setIsBatchOpen}
         marcasDb={marcasDb}
+        medidasDb={medidasDb}
         medidasCatalogo={medidasCatalogo}
         tiposCatalogo={tiposCatalogo}
         tiposDb={tiposDb}

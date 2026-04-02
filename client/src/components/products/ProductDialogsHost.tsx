@@ -86,6 +86,7 @@ type ProductDialogsHostProps = {
   medidasCatalogo: string[];
   tiposCatalogo: string[];
   marcasDb?: CatalogItem[];
+  medidasDb?: CatalogItem[];
   tiposDb?: CatalogItem[];
   modelSuggestions: string[];
   editingProduct: Product | null;
@@ -117,6 +118,8 @@ type ProductDialogsHostProps = {
   setNewModelBrandId: Dispatch<SetStateAction<string>>;
   newModelTypeId: string;
   setNewModelTypeId: Dispatch<SetStateAction<string>>;
+  newModelMeasureIds: number[];
+  setNewModelMeasureIds: Dispatch<SetStateAction<number[]>>;
   handleCreateBrandFromDialog: () => void;
   handleCreateMeasureFromDialog: () => void;
   handleCreateTypeFromDialog: () => void;
@@ -169,6 +172,7 @@ export function ProductDialogsHost({
   medidasCatalogo,
   tiposCatalogo,
   marcasDb,
+  medidasDb,
   tiposDb,
   modelSuggestions,
   editingProduct,
@@ -200,6 +204,8 @@ export function ProductDialogsHost({
   setNewModelBrandId,
   newModelTypeId,
   setNewModelTypeId,
+  newModelMeasureIds,
+  setNewModelMeasureIds,
   handleCreateBrandFromDialog,
   handleCreateMeasureFromDialog,
   handleCreateTypeFromDialog,
@@ -513,6 +519,28 @@ export function ProductDialogsHost({
                     <Plus className="h-4 w-4" />
                   </Button>
                 </div>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Medidas vinculadas</Label>
+              <div className="max-h-40 overflow-auto rounded-md border bg-background/70 p-2 grid grid-cols-1 gap-1 sm:grid-cols-2">
+                {(medidasDb ?? []).map((item) => (
+                  <label
+                    key={item.id}
+                    className="flex items-center gap-2 rounded px-2 py-1.5 cursor-pointer hover:bg-accent/50 transition-colors"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={newModelMeasureIds.includes(item.id)}
+                      onChange={(e) =>
+                        setNewModelMeasureIds((prev) =>
+                          e.target.checked ? Array.from(new Set([...prev, item.id])) : prev.filter((id) => id !== item.id)
+                        )
+                      }
+                    />
+                    <span className="text-sm">{item.nome}</span>
+                  </label>
+                ))}
               </div>
             </div>
           </div>

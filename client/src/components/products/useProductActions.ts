@@ -40,6 +40,7 @@ type UseProductActionsParams = {
   setIsSaleStatusDialogOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setTogglingProductId: React.Dispatch<React.SetStateAction<number | null>>;
   marcasDb?: CatalogItem[];
+  medidasDb?: CatalogItem[];
   tiposDb?: CatalogItem[];
   medidasCatalogo: string[];
   tiposCatalogo: string[];
@@ -62,6 +63,8 @@ type UseProductActionsParams = {
   setNewModelBrandId: React.Dispatch<React.SetStateAction<string>>;
   newModelTypeId: string;
   setNewModelTypeId: React.Dispatch<React.SetStateAction<string>>;
+  newModelMeasureIds: number[];
+  setNewModelMeasureIds: React.Dispatch<React.SetStateAction<number[]>>;
   debouncedSearchTerm: string;
   filterMedida: string;
   filterCategoria: string;
@@ -144,6 +147,7 @@ export function useProductActions({
   setIsSaleStatusDialogOpen,
   setTogglingProductId,
   marcasDb,
+  medidasDb,
   tiposDb,
   medidasCatalogo,
   tiposCatalogo,
@@ -162,6 +166,8 @@ export function useProductActions({
   setNewModelBrandId,
   newModelTypeId,
   setNewModelTypeId,
+  newModelMeasureIds,
+  setNewModelMeasureIds,
   debouncedSearchTerm,
   filterMedida,
   filterCategoria,
@@ -403,11 +409,15 @@ export function useProductActions({
   const openCreateModelDialog = useCallback(() => {
     const selectedBrand = (marcasDb ?? []).find((item) => item.nome === formData.marca);
     const selectedType = (tiposDb ?? []).find((item) => item.nome === formData.categoria);
+    const selectedMeasureIds = (medidasDb ?? [])
+      .filter((item) => item.nome === formData.medida)
+      .map((item) => item.id);
     setNewModelName(formData.name ?? "");
     setNewModelBrandId(selectedBrand ? String(selectedBrand.id) : "");
     setNewModelTypeId(selectedType ? String(selectedType.id) : "");
+    setNewModelMeasureIds(selectedMeasureIds);
     setIsCreateModelDialogOpen(true);
-  }, [formData.categoria, formData.marca, formData.name, marcasDb, setIsCreateModelDialogOpen, setNewModelBrandId, setNewModelName, setNewModelTypeId, tiposDb]);
+  }, [formData.categoria, formData.marca, formData.medida, formData.name, marcasDb, medidasDb, setIsCreateModelDialogOpen, setNewModelBrandId, setNewModelMeasureIds, setNewModelName, setNewModelTypeId, tiposDb]);
 
   const openCreateBrandDialog = useCallback(() => {
     setNewBrandName(normalizeCatalogBrandInput(formData.marca ?? ""));
@@ -475,24 +485,32 @@ export function useProductActions({
       toast.error("Selecione marca e tipo para o modelo.");
       return;
     }
+    if (newModelMeasureIds.length === 0) {
+      toast.error("Selecione ao menos uma medida para o modelo.");
+      return;
+    }
 
     await createModelMutation.mutateAsync({
       nome,
       brandId: Number(newModelBrandId),
       productTypeId: Number(newModelTypeId),
+      measureIds: newModelMeasureIds,
     });
 
     const selectedBrandName = (marcasDb ?? []).find((item) => item.id === Number(newModelBrandId))?.nome ?? "";
     const selectedTypeName = (tiposDb ?? []).find((item) => item.id === Number(newModelTypeId))?.nome ?? "";
+    const selectedMeasureName =
+      (medidasDb ?? []).find((item) => newModelMeasureIds.includes(item.id))?.nome ?? "";
 
     setFormData((prev) => ({
       ...prev,
       name: nome,
       marca: selectedBrandName || prev.marca,
       categoria: selectedTypeName || prev.categoria,
+      medida: selectedMeasureName || prev.medida,
     }));
     setIsCreateModelDialogOpen(false);
-  }, [createModelMutation, marcasDb, newModelBrandId, newModelName, newModelTypeId, setFormData, setIsCreateModelDialogOpen, tiposDb]);
+  }, [createModelMutation, marcasDb, medidasDb, newModelBrandId, newModelMeasureIds, newModelName, newModelTypeId, setFormData, setIsCreateModelDialogOpen, tiposDb]);
 
   const handleEdit = useCallback((product: Product) => {
     setEditingProduct(product);

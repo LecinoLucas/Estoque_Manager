@@ -42,12 +42,15 @@ type CatalogModelItem = {
   productTypeId: number;
   brandNome: string;
   productTypeNome: string;
+  measureIds: number[];
+  measureNomes: string[];
 };
 
 type BatchProductDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   marcasDb?: CatalogItem[];
+  medidasDb?: CatalogItem[];
   medidasCatalogo: string[];
   tiposCatalogo: string[];
   tiposDb?: CatalogItem[];
@@ -58,6 +61,7 @@ export default function BatchProductDialog({
   open,
   onOpenChange,
   marcasDb,
+  medidasDb,
   medidasCatalogo,
   tiposCatalogo,
   tiposDb,
@@ -78,6 +82,7 @@ export default function BatchProductDialog({
   const [newCatalogModelName, setNewCatalogModelName] = useState("");
   const [newCatalogModelBrandId, setNewCatalogModelBrandId] = useState("");
   const [newCatalogModelTypeId, setNewCatalogModelTypeId] = useState("");
+  const [newCatalogModelMeasureIds, setNewCatalogModelMeasureIds] = useState<number[]>([]);
   const [newTypeName, setNewTypeName] = useState("");
   const [newMeasureName, setNewMeasureName] = useState("");
   const [result, setResult] = useState<{
@@ -163,6 +168,7 @@ export default function BatchProductDialog({
     setNewCatalogModelName("");
     setNewCatalogModelBrandId("");
     setNewCatalogModelTypeId("");
+    setNewCatalogModelMeasureIds([]);
     setNewTypeName("");
     setNewMeasureName("");
     setResult(null);
@@ -203,9 +209,23 @@ export default function BatchProductDialog({
         const type = (tiposDb ?? []).find((t) => t.id === model.productTypeId);
         if (type) setCategoria(type.nome);
       }
+      if (model.measureNomes.length > 0) {
+        setSelectedMedidas(new Set(model.measureNomes));
+      }
     },
     [marca, categoria, marcasDb, modelosDb, tiposDb]
   );
+
+  const availableMedidas = useMemo(() => {
+    const selectedModel = (modelosDb ?? []).find(
+      (item) =>
+        item.nome === name &&
+        (!marca || item.brandNome === marca) &&
+        (!categoria || item.productTypeNome === categoria)
+    );
+    if (!selectedModel || selectedModel.measureNomes.length === 0) return medidasCatalogo;
+    return selectedModel.measureNomes;
+  }, [categoria, marca, medidasCatalogo, modelosDb, name]);
 
   const toggleMedida = useCallback((medida: string) => {
     setSelectedMedidas((prev) => {
@@ -218,10 +238,10 @@ export default function BatchProductDialog({
 
   const toggleAllMedidas = useCallback(() => {
     setSelectedMedidas((prev) => {
-      if (prev.size === medidasCatalogo.length) return new Set();
-      return new Set(medidasCatalogo);
+      if (prev.size === availableMedidas.length) return new Set();
+      return new Set(availableMedidas);
     });
-  }, [medidasCatalogo]);
+  }, [availableMedidas]);
 
   const handleSubmit = useCallback(() => {
     if (!name.trim()) {
@@ -267,11 +287,16 @@ export default function BatchProductDialog({
       toast.error("Selecione marca e tipo para o modelo.");
       return;
     }
+    if (newCatalogModelMeasureIds.length === 0) {
+      toast.error("Selecione ao menos uma medida para o modelo.");
+      return;
+    }
 
     await createModelMutation.mutateAsync({
       nome,
       brandId: Number(newCatalogModelBrandId),
       productTypeId: Number(newCatalogModelTypeId),
+      measureIds: newCatalogModelMeasureIds,
     });
 
     const selectedBrandName = (marcasDb ?? []).find((item) => item.id === Number(newCatalogModelBrandId))?.nome ?? "";
@@ -280,8 +305,9 @@ export default function BatchProductDialog({
     setName(nome);
     if (selectedBrandName) setMarca(selectedBrandName);
     if (selectedTypeName) setCategoria(selectedTypeName);
+    setSelectedMedidas(new Set((medidasDb ?? []).filter((item) => newCatalogModelMeasureIds.includes(item.id)).map((item) => item.nome)));
     setIsCreateModelDialogOpen(false);
-  }, [createModelMutation, marcasDb, newCatalogModelBrandId, newCatalogModelName, newCatalogModelTypeId, tiposDb]);
+  }, [createModelMutation, marcasDb, medidasDb, newCatalogModelBrandId, newCatalogModelMeasureIds, newCatalogModelName, newCatalogModelTypeId, tiposDb]);
 
   const handleCreateTypeFromDialog = useCallback(async () => {
     const nome = normalizeCatalogTypeInput(newTypeName.trim());
@@ -536,14 +562,14 @@ export default function BatchProductDialog({
                   className="text-xs h-auto px-1"
                   onClick={toggleAllMedidas}
                 >
-                  {selectedMedidas.size === medidasCatalogo.length
+                  {selectedMedidas.size === availableMedidas.length
                     ? "Desmarcar todas"
                     : "Selecionar todas"}
                 </Button>
               </div>
             </div>
             <div className="max-h-[32vh] overflow-auto rounded-md border bg-background/70 p-2 grid grid-cols-1 gap-1 sm:grid-cols-2">
-              {medidasCatalogo.map((medida) => (
+              {availableMedidas.map((medida) => (
                 <label
                   key={medida}
                   className="flex items-center gap-2 rounded px-2 py-1.5 cursor-pointer hover:bg-accent/50 transition-colors"
@@ -711,6 +737,27 @@ export default function BatchProductDialog({
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Medidas vinculadas</Label>
+              <div className="max-h-40 overflow-auto rounded-md border bg-background/70 p-2 grid grid-cols-1 gap-1 sm:grid-cols-2">
+                {(medidasDb ?? []).map((item) => (
+                  <label
+                    key={item.id}
+                    className="flex items-center gap-2 rounded px-2 py-1.5 cursor-pointer hover:bg-accent/50 transition-colors"
+                  >
+                    <Checkbox
+                      checked={newCatalogModelMeasureIds.includes(item.id)}
+                      onCheckedChange={(checked) =>
+                        setNewCatalogModelMeasureIds((prev) =>
+                          checked ? Array.from(new Set([...prev, item.id])) : prev.filter((id) => id !== item.id)
+                        )
+                      }
+                    />
+                    <span className="text-sm">{item.nome}</span>
+                  </label>
+                ))}
               </div>
             </div>
           </div>

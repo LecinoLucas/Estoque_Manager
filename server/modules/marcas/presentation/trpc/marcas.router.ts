@@ -134,6 +134,7 @@ export const marcasRouter = router({
         nome: z.string().min(1).max(120),
         brandId: z.number().int().positive(),
         productTypeId: z.number().int().positive(),
+        measureIds: z.array(z.number().int().positive()).min(1),
       })
     )
     .mutation(async ({ input }) => {
@@ -151,6 +152,7 @@ export const marcasRouter = router({
         nome: z.string().min(1).max(120),
         brandId: z.number().int().positive(),
         productTypeId: z.number().int().positive(),
+        measureIds: z.array(z.number().int().positive()).min(1),
       })
     )
     .mutation(async ({ input }) => {
@@ -159,6 +161,7 @@ export const marcasRouter = router({
           nome: input.nome,
           brandId: input.brandId,
           productTypeId: input.productTypeId,
+          measureIds: input.measureIds,
         });
       } catch (error) {
         throw toTrpcError(error);

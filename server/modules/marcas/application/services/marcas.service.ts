@@ -78,13 +78,13 @@ export class MarcasService {
     return appCache.getOrSet(CACHE_MODELS_KEY, () => db.getAllCatalogModels(), CACHE_TTL.LONG);
   }
 
-  async createModel(input: { nome: string; brandId: number; productTypeId: number }) {
+  async createModel(input: { nome: string; brandId: number; productTypeId: number; measureIds: number[] }) {
     const result = await db.createCatalogModel(input);
     appCache.invalidatePrefix("catalog:");
     return result;
   }
 
-  async updateModel(id: number, input: { nome: string; brandId: number; productTypeId: number }) {
+  async updateModel(id: number, input: { nome: string; brandId: number; productTypeId: number; measureIds: number[] }) {
     const result = await db.updateCatalogModel(id, input);
     appCache.invalidatePrefix("catalog:");
     return result;

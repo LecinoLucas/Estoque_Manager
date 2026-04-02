@@ -1633,6 +1633,8 @@ export type CatalogModelItem = {
   productTypeId: number;
   brandNome: string;
   productTypeNome: string;
+  measureIds: number[];
+  measureNomes: string[];
 };
 
 function normalizeCatalogName(value: string) {
@@ -1729,6 +1731,75 @@ async function ensureCatalogSellersTable() {
   return db;
 }
 
+async function ensureCatalogModelMeasuresTable() {
+  const db = await getDb();
+  if (!db) return null;
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS catalog_model_measures (
+      model_id INT NOT NULL,
+      measure_id INT NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (model_id, measure_id),
+      CONSTRAINT fk_catalog_model_measures_model
+        FOREIGN KEY (model_id) REFERENCES catalog_models (id)
+        ON DELETE CASCADE,
+      CONSTRAINT fk_catalog_model_measures_measure
+        FOREIGN KEY (measure_id) REFERENCES catalog_measures (id)
+        ON DELETE CASCADE
+    )
+  `);
+
+  return db;
+}
+
+function normalizeCatalogMeasureIds(measureIds: number[]) {
+  return Array.from(new Set(measureIds.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0)));
+}
+
+async function assertActiveCatalogMeasuresExist(
+  tx: { execute: (query: ReturnType<typeof sql>) => Promise<unknown> },
+  measureIds: number[]
+) {
+  const normalizedIds = normalizeCatalogMeasureIds(measureIds);
+  if (normalizedIds.length === 0) {
+    throw new Error("Selecione ao menos uma medida cadastrada.");
+  }
+
+  const idsSql = sql.join(normalizedIds.map((id) => sql`${id}`), sql`, `);
+  const result = await tx.execute(sql`
+    SELECT id
+    FROM catalog_measures
+    WHERE is_active = 1
+      AND id IN (${idsSql})
+  `);
+  const rows = extractRows(result);
+  if (rows.length !== normalizedIds.length) {
+    throw new Error("Selecione apenas medidas válidas cadastradas no catálogo.");
+  }
+
+  return normalizedIds;
+}
+
+async function replaceCatalogModelMeasureLinks(
+  tx: { execute: (query: ReturnType<typeof sql>) => Promise<unknown> },
+  modelId: number,
+  measureIds: number[]
+) {
+  const normalizedIds = await assertActiveCatalogMeasuresExist(tx, measureIds);
+  await tx.execute(sql`DELETE FROM catalog_model_measures WHERE model_id = ${modelId}`);
+
+  if (normalizedIds.length === 0) return;
+  const valuesSql = sql.join(
+    normalizedIds.map((measureId) => sql`(${modelId}, ${measureId})`),
+    sql`, `
+  );
+  await tx.execute(sql`
+    INSERT INTO catalog_model_measures (model_id, measure_id)
+    VALUES ${valuesSql}
+  `);
+}
+
 async function listCatalogItems(tableName: "catalog_brands" | "catalog_measures" | "catalog_product_types") {
   const db = await getDb();
   if (!db) return [] as CatalogItem[];
@@ -1810,18 +1881,62 @@ async function updateCatalogItem(
 
   if (tableName === "catalog_brands") {
     const normalizedBrand = normalizeCatalogBrandName(nome);
-    await db.execute(sql`UPDATE catalog_brands SET name = ${normalizedBrand} WHERE id = ${id}`);
+    await db.transaction(async (tx) => {
+      const currentResult = await tx.execute(sql`SELECT name FROM catalog_brands WHERE id = ${id} LIMIT 1`);
+      const currentRows = extractRows(currentResult);
+      const currentName = String(currentRows[0]?.name ?? "").trim();
+      if (!currentName) throw new Error("Marca não encontrada.");
+
+      await tx.execute(sql`UPDATE catalog_brands SET name = ${normalizedBrand} WHERE id = ${id}`);
+      await tx.execute(sql`
+        UPDATE products
+        SET marca = ${normalizedBrand}
+        WHERE LOWER(TRIM(COALESCE(NULLIF(marca, ''), 'SEM_MARCA'))) = ${currentName.toLowerCase()}
+      `);
+    });
     return { id, nome: normalizedBrand };
   }
 
   if (tableName === "catalog_measures") {
     const normalizedMeasure = normalizeCatalogMeasureName(nome);
-    await db.execute(sql`UPDATE catalog_measures SET description = ${normalizedMeasure}, code = ${normalizedMeasure} WHERE id = ${id}`);
+    await db.transaction(async (tx) => {
+      const currentResult = await tx.execute(sql`SELECT description FROM catalog_measures WHERE id = ${id} LIMIT 1`);
+      const currentRows = extractRows(currentResult);
+      const currentName = String(currentRows[0]?.description ?? "").trim();
+      if (!currentName) throw new Error("Medida não encontrada.");
+
+      await tx.execute(sql`
+        UPDATE catalog_measures
+        SET description = ${normalizedMeasure}, code = ${normalizedMeasure}
+        WHERE id = ${id}
+      `);
+      await tx.execute(sql`
+        UPDATE products
+        SET medida = ${normalizedMeasure}
+        WHERE LOWER(TRIM(medida)) = ${currentName.toLowerCase()}
+      `);
+    });
     return { id, nome: normalizedMeasure };
   }
 
   const normalizedType = normalizeCatalogProductTypeName(nome);
-  await db.execute(sql`UPDATE catalog_product_types SET name = ${normalizedType}, code = ${normalizedType} WHERE id = ${id}`);
+  await db.transaction(async (tx) => {
+    const currentResult = await tx.execute(sql`SELECT name FROM catalog_product_types WHERE id = ${id} LIMIT 1`);
+    const currentRows = extractRows(currentResult);
+    const currentName = String(currentRows[0]?.name ?? "").trim();
+    if (!currentName) throw new Error("Tipo não encontrado.");
+
+    await tx.execute(sql`
+      UPDATE catalog_product_types
+      SET name = ${normalizedType}, code = ${normalizedType}
+      WHERE id = ${id}
+    `);
+    await tx.execute(sql`
+      UPDATE products
+      SET categoria = ${normalizedType}
+      WHERE LOWER(TRIM(categoria)) = ${currentName.toLowerCase()}
+    `);
+  });
   return { id, nome: normalizedType };
 }
 
@@ -1963,6 +2078,7 @@ export async function deleteCatalogProductType(id: number) {
 export async function getAllCatalogModels() {
   const db = await getDb();
   if (!db) return [] as CatalogModelItem[];
+  await ensureCatalogModelMeasuresTable();
 
   const result = await db.execute(sql`
     SELECT
@@ -1971,10 +2087,15 @@ export async function getAllCatalogModels() {
       cm.brand_id AS brandId,
       cm.product_type_id AS productTypeId,
       cb.name AS brandNome,
-      cpt.name AS productTypeNome
+      cpt.name AS productTypeNome,
+      GROUP_CONCAT(DISTINCT cmm.measure_id ORDER BY cmm.measure_id SEPARATOR '|') AS measureIds,
+      GROUP_CONCAT(DISTINCT cme.description ORDER BY cme.description SEPARATOR '|') AS measureNomes
     FROM catalog_models cm
     INNER JOIN catalog_brands cb ON cb.id = cm.brand_id
     INNER JOIN catalog_product_types cpt ON cpt.id = cm.product_type_id
+    LEFT JOIN catalog_model_measures cmm ON cmm.model_id = cm.id
+    LEFT JOIN catalog_measures cme ON cme.id = cmm.measure_id AND cme.is_active = 1
+    GROUP BY cm.id, cm.name, cm.brand_id, cm.product_type_id, cb.name, cpt.name
     ORDER BY cb.name ASC, cpt.name ASC, cm.name ASC
   `);
   const rows = extractRows(result);
@@ -1985,6 +2106,14 @@ export async function getAllCatalogModels() {
     productTypeId: Number(row.productTypeId),
     brandNome: String(row.brandNome ?? ""),
     productTypeNome: String(row.productTypeNome ?? ""),
+    measureIds: String(row.measureIds ?? "")
+      .split("|")
+      .map((value) => Number(value))
+      .filter((value) => Number.isInteger(value) && value > 0),
+    measureNomes: String(row.measureNomes ?? "")
+      .split("|")
+      .map((value) => value.trim())
+      .filter(Boolean),
   }));
 }
 
@@ -1992,56 +2121,68 @@ export async function createCatalogModel(input: {
   nome: string;
   brandId: number;
   productTypeId: number;
+  measureIds: number[];
 }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  await ensureCatalogModelMeasuresTable();
 
   const normalized = normalizeCatalogModelName(input.nome);
   if (!normalized) throw new Error("Nome é obrigatório");
 
-  await db.execute(sql`
-    INSERT INTO catalog_models (brand_id, product_type_id, name, code)
-    VALUES (${input.brandId}, ${input.productTypeId}, ${normalized}, NULL)
-    ON DUPLICATE KEY UPDATE name = VALUES(name), is_active = 1
-  `);
+  const id = await db.transaction(async (tx) => {
+    await assertActiveCatalogMeasuresExist(tx, input.measureIds);
+    await tx.execute(sql`
+      INSERT INTO catalog_models (brand_id, product_type_id, name, code)
+      VALUES (${input.brandId}, ${input.productTypeId}, ${normalized}, NULL)
+      ON DUPLICATE KEY UPDATE name = VALUES(name), is_active = 1
+    `);
 
-  const id = await queryFirstId(
-    db,
-    sql`
+    const idResult = await tx.execute(sql`
       SELECT id FROM catalog_models
       WHERE brand_id = ${input.brandId}
         AND product_type_id = ${input.productTypeId}
         AND name = ${normalized}
       LIMIT 1
-    `,
-    "id"
-  );
+    `);
+    const idRows = extractRows(idResult);
+    const nextId = Number(idRows[0]?.id ?? 0);
+    if (!nextId) throw new Error("Não foi possível criar o modelo.");
+
+    await replaceCatalogModelMeasureLinks(tx, nextId, input.measureIds);
+    return nextId;
+  });
 
   if (!id) throw new Error("Não foi possível criar o modelo.");
-  return { id, nome: normalized };
+  return { id, nome: normalized, measureIds: normalizeCatalogMeasureIds(input.measureIds) };
 }
 
 export async function updateCatalogModel(
   id: number,
-  input: { nome: string; brandId: number; productTypeId: number }
+  input: { nome: string; brandId: number; productTypeId: number; measureIds: number[] }
 ) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  await ensureCatalogModelMeasuresTable();
 
   const normalized = normalizeCatalogModelName(input.nome);
   if (!normalized) throw new Error("Nome é obrigatório");
 
-  await db.execute(sql`
-    UPDATE catalog_models
-    SET
-      name = ${normalized},
-      brand_id = ${input.brandId},
-      product_type_id = ${input.productTypeId},
-      updated_at = CURRENT_TIMESTAMP
-    WHERE id = ${id}
-  `);
+  await db.transaction(async (tx) => {
+    await assertActiveCatalogMeasuresExist(tx, input.measureIds);
+    await tx.execute(sql`
+      UPDATE catalog_models
+      SET
+        name = ${normalized},
+        brand_id = ${input.brandId},
+        product_type_id = ${input.productTypeId},
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = ${id}
+    `);
+    await replaceCatalogModelMeasureLinks(tx, id, input.measureIds);
+  });
 
-  return { id, nome: normalized };
+  return { id, nome: normalized, measureIds: normalizeCatalogMeasureIds(input.measureIds) };
 }
 
 export async function deleteCatalogModel(id: number) {
@@ -2073,6 +2214,7 @@ export async function deleteCatalogModel(id: number) {
 export async function syncCatalogFromLegacyProducts() {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  await ensureCatalogModelMeasuresTable();
 
   // 1) Marcas
   await db.execute(sql`
@@ -2125,6 +2267,27 @@ export async function syncCatalogFromLegacyProducts() {
     ON DUPLICATE KEY UPDATE
       name = VALUES(name),
       is_active = 1
+  `);
+
+  await db.execute(sql`
+    INSERT INTO catalog_model_measures (model_id, measure_id)
+    SELECT DISTINCT
+      cm.id AS model_id,
+      cme.id AS measure_id
+    FROM products p
+    INNER JOIN catalog_brands cb
+      ON cb.name = TRIM(COALESCE(NULLIF(p.marca, ''), 'SEM_MARCA'))
+    INNER JOIN catalog_product_types cpt
+      ON cpt.name = TRIM(p.categoria)
+    INNER JOIN catalog_models cm
+      ON cm.brand_id = cb.id
+     AND cm.product_type_id = cpt.id
+     AND cm.name = TRIM(p.name)
+    INNER JOIN catalog_measures cme
+      ON cme.description = TRIM(p.medida)
+    WHERE TRIM(COALESCE(p.name, '')) <> ''
+      AND TRIM(COALESCE(p.medida, '')) <> ''
+    ON DUPLICATE KEY UPDATE measure_id = VALUES(measure_id)
   `);
 
   const countsResult = await db.execute(sql`

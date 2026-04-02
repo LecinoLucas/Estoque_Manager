@@ -103,6 +103,7 @@ function normalizeCatalogEntryName(tab: CatalogTab, value: string) {
 }
 
 export default function CatalogoBasePage() {
+  const utils = trpc.useUtils();
   const [tab, setTab] = useState<CatalogTab>("brands");
   const [viewMode, setViewMode] = useState<CatalogViewMode>(() => {
     if (typeof window === "undefined") return "cards";
@@ -115,8 +116,10 @@ export default function CatalogoBasePage() {
   const [editNome, setEditNome] = useState("");
   const [modelBrandId, setModelBrandId] = useState<string>("");
   const [modelTypeId, setModelTypeId] = useState<string>("");
+  const [modelMeasureIds, setModelMeasureIds] = useState<number[]>([]);
   const [editModelBrandId, setEditModelBrandId] = useState<string>("");
   const [editModelTypeId, setEditModelTypeId] = useState<string>("");
+  const [editModelMeasureIds, setEditModelMeasureIds] = useState<number[]>([]);
   const [paymentCategory, setPaymentCategory] = useState("");
   const [editPaymentCategory, setEditPaymentCategory] = useState("");
   const [search, setSearch] = useState("");
@@ -161,7 +164,9 @@ export default function CatalogoBasePage() {
         nome: item.nome,
         brandId: item.brandId,
         productTypeId: item.productTypeId,
-        subtitle: `${item.brandNome} • ${item.productTypeNome}`,
+        measureIds: item.measureIds,
+        measureNomes: item.measureNomes,
+        subtitle: `${item.brandNome} • ${item.productTypeNome}${item.measureNomes?.length ? ` • ${item.measureNomes.join(", ")}` : ""}`,
       }));
     }
     if (tab === "sellers") return sellersQuery.data ?? [];
@@ -193,10 +198,19 @@ export default function CatalogoBasePage() {
     else await paymentMethodsQuery.refetch();
   };
 
+  const invalidateLinkedProductQueries = async () => {
+    await Promise.all([
+      utils.products.list.invalidate(),
+      utils.products.lowStock.invalidate(),
+      utils.dashboard.stats.invalidate(),
+    ]);
+  };
+
   const resetCreateModal = () => {
     setNome("");
     setModelBrandId("");
     setModelTypeId("");
+    setModelMeasureIds([]);
     setPaymentCategory("");
     setShowCreateModal(false);
   };
@@ -206,6 +220,7 @@ export default function CatalogoBasePage() {
     setEditNome("");
     setEditModelBrandId("");
     setEditModelTypeId("");
+    setEditModelMeasureIds([]);
     setEditPaymentCategory("");
     setShowEditModal(false);
   };
@@ -233,10 +248,15 @@ export default function CatalogoBasePage() {
           toast.error("Selecione marca e tipo para o modelo.");
           return;
         }
+        if (modelMeasureIds.length === 0) {
+          toast.error("Selecione ao menos uma medida para o modelo.");
+          return;
+        }
         await createModel.mutateAsync({
           nome: normalized,
           brandId: Number(modelBrandId),
           productTypeId: Number(modelTypeId),
+          measureIds: modelMeasureIds,
         });
       } else if (tab === "payments") {
         if (!paymentCategory.trim()) {
@@ -253,7 +273,7 @@ export default function CatalogoBasePage() {
 
       toast.success(`${activeConfig.singular} criada com sucesso!`);
       resetCreateModal();
-      await refetchActive();
+      await Promise.all([refetchActive(), invalidateLinkedProductQueries()]);
     } catch (error: any) {
       toast.error(error?.message || `Erro ao criar ${activeConfig.singular.toLowerCase()}`);
     }
@@ -264,6 +284,7 @@ export default function CatalogoBasePage() {
     setEditNome(item.nome);
     setEditModelBrandId(item.brandId ? String(item.brandId) : "");
     setEditModelTypeId(item.productTypeId ? String(item.productTypeId) : "");
+    setEditModelMeasureIds(item.measureIds ?? []);
     setEditPaymentCategory(item.categoria ?? "");
     setShowEditModal(true);
   };
@@ -283,11 +304,16 @@ export default function CatalogoBasePage() {
           toast.error("Selecione marca e tipo para o modelo.");
           return;
         }
+        if (editModelMeasureIds.length === 0) {
+          toast.error("Selecione ao menos uma medida para o modelo.");
+          return;
+        }
         await updateModel.mutateAsync({
           id: editId,
           nome: normalized,
           brandId: Number(editModelBrandId),
           productTypeId: Number(editModelTypeId),
+          measureIds: editModelMeasureIds,
         });
       } else if (tab === "payments") {
         if (!editPaymentCategory.trim()) {
@@ -305,7 +331,7 @@ export default function CatalogoBasePage() {
 
       toast.success(`${activeConfig.singular} atualizada com sucesso!`);
       resetEditModal();
-      await refetchActive();
+      await Promise.all([refetchActive(), invalidateLinkedProductQueries()]);
     } catch (error: any) {
       toast.error(error?.message || `Erro ao atualizar ${activeConfig.singular.toLowerCase()}`);
     }
@@ -323,7 +349,7 @@ export default function CatalogoBasePage() {
       else await deleteSeller.mutateAsync({ id: item.id });
 
       toast.success(`${activeConfig.singular} excluída com sucesso!`);
-      await refetchActive();
+      await Promise.all([refetchActive(), invalidateLinkedProductQueries()]);
     } catch (error: any) {
       toast.error(error?.message || `Erro ao excluir ${activeConfig.singular.toLowerCase()}`);
     }
@@ -340,6 +366,7 @@ export default function CatalogoBasePage() {
         measuresQuery.refetch(),
         typesQuery.refetch(),
         modelsQuery.refetch(),
+        invalidateLinkedProductQueries(),
       ]);
     } catch (error: any) {
       toast.error(error?.message || "Erro ao sincronizar categorias do estoque.");
@@ -448,7 +475,8 @@ export default function CatalogoBasePage() {
             ) : null}
           </div>
           {tab === "models" ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="space-y-3">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <div className="space-y-2">
                 <Label>Marca</Label>
                 <Select value={modelBrandId} onValueChange={setModelBrandId}>
@@ -479,6 +507,29 @@ export default function CatalogoBasePage() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Medidas vinculadas</Label>
+              <div className="max-h-48 overflow-auto rounded-md border bg-background/70 p-2 grid grid-cols-1 gap-1 sm:grid-cols-2">
+                {(measuresQuery.data ?? []).map((item) => (
+                  <label
+                    key={item.id}
+                    className="flex items-center gap-2 rounded px-2 py-1.5 cursor-pointer hover:bg-accent/50 transition-colors"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={modelMeasureIds.includes(item.id)}
+                      onChange={(e) =>
+                        setModelMeasureIds((prev) =>
+                          e.target.checked ? Array.from(new Set([...prev, item.id])) : prev.filter((id) => id !== item.id)
+                        )
+                      }
+                    />
+                    <span className="text-sm">{item.nome}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
             </div>
           ) : null}
           {tab === "payments" ? (
@@ -542,7 +593,8 @@ export default function CatalogoBasePage() {
             ) : null}
           </div>
           {tab === "models" ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="space-y-3">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <div className="space-y-2">
                 <Label>Marca</Label>
                 <Select value={editModelBrandId} onValueChange={setEditModelBrandId}>
@@ -573,6 +625,29 @@ export default function CatalogoBasePage() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Medidas vinculadas</Label>
+              <div className="max-h-48 overflow-auto rounded-md border bg-background/70 p-2 grid grid-cols-1 gap-1 sm:grid-cols-2">
+                {(measuresQuery.data ?? []).map((item) => (
+                  <label
+                    key={item.id}
+                    className="flex items-center gap-2 rounded px-2 py-1.5 cursor-pointer hover:bg-accent/50 transition-colors"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={editModelMeasureIds.includes(item.id)}
+                      onChange={(e) =>
+                        setEditModelMeasureIds((prev) =>
+                          e.target.checked ? Array.from(new Set([...prev, item.id])) : prev.filter((id) => id !== item.id)
+                        )
+                      }
+                    />
+                    <span className="text-sm">{item.nome}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
             </div>
           ) : null}
           {tab === "payments" ? (

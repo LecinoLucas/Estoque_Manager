@@ -58,24 +58,24 @@ export const ProductTableRow = memo(function ProductTableRow({
         <TableCell>
           {product.quantidade < 0 ? (
             <div className="flex items-center gap-2">
-              <Badge className="bg-purple-700 hover:bg-purple-700 text-white text-sm px-2.5 py-1">
-                {product.quantidade}
+              <Badge variant="outline" className="bg-white hover:bg-white text-foreground text-sm px-2.5 py-1">
+                <span className="font-semibold text-purple-700">{product.quantidade}</span>
               </Badge>
-              <span className="text-xs text-purple-700 font-medium">
+              <span className="text-xs text-purple-800 font-medium">
                 {Math.abs(product.quantidade)} encomenda(s)
               </span>
             </div>
           ) : product.quantidade <= 1 ? (
-            <Badge variant="destructive" className="text-sm px-2.5 py-1">
-              {product.quantidade}
+            <Badge variant="outline" className="bg-white hover:bg-white text-foreground text-sm px-2.5 py-1">
+              <span className="font-semibold text-red-700">{product.quantidade}</span>
             </Badge>
           ) : product.quantidade <= product.estoqueMinimo ? (
-            <Badge className="bg-orange-600 hover:bg-orange-600 text-white text-sm px-2.5 py-1">
-              {product.quantidade}
+            <Badge variant="outline" className="bg-white hover:bg-white text-foreground text-sm px-2.5 py-1">
+              <span className="font-semibold text-orange-700">{product.quantidade}</span>
             </Badge>
           ) : (
-            <Badge variant="outline" className="text-sm px-2.5 py-1 font-semibold">
-              {product.quantidade}
+            <Badge variant="outline" className="bg-white hover:bg-white text-foreground text-sm px-2.5 py-1">
+              <span className="font-semibold text-slate-700">{product.quantidade}</span>
             </Badge>
           )}
         </TableCell>

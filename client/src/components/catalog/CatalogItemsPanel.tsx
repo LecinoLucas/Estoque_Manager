@@ -15,6 +15,8 @@ export type CatalogPanelItem = {
   categoria?: string;
   brandId?: number;
   productTypeId?: number;
+  measureIds?: number[];
+  measureNomes?: string[];
 };
 
 type CatalogItemsPanelProps = {
